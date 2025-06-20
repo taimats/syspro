@@ -34,7 +34,7 @@ func main() {
 		req, err := http.NewRequest(
 			http.MethodPost,
 			"http://localhost:8080",
-			strings.NewReader(messages[0]),
+			strings.NewReader(messages[count]),
 		)
 		if err != nil {
 			log.Fatal(err)
@@ -57,7 +57,7 @@ func main() {
 }
 
 func handleResponse(res *http.Response) {
-	if isGzipRequired(res.Header.Get("Content-Encoding")) {
+	if isGzipRequired(res) {
 		r, err := gzip.NewReader(res.Body)
 		if err != nil {
 			log.Fatal(err)
@@ -68,6 +68,6 @@ func handleResponse(res *http.Response) {
 	io.Copy(os.Stdout, res.Body)
 }
 
-func isGzipRequired(value string) bool {
-	return value == "gzip"
+func isGzipRequired(res *http.Response) bool {
+	return res.Header.Get("Content-Encoding") == "gzip"
 }

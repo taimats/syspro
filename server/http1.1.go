@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -59,6 +62,7 @@ func handleRequest(conn net.Conn) {
 			return
 		}
 		fmt.Println(string(dump))
+
 		content := "Hello world\n"
 		res := &http.Response{
 			Status:        strconv.Itoa(http.StatusOK),
@@ -66,7 +70,25 @@ func handleRequest(conn net.Conn) {
 			ProtoMinor:    1,
 			ContentLength: int64(len(content)),
 			Body:          io.NopCloser(strings.NewReader(content)),
+			Header:        make(http.Header),
+		}
+		if isGzipAcceptable(req) {
+			content = "Hello world (Gzipped)\n"
+
+			var buf bytes.Buffer
+			w := gzip.NewWriter(&buf)
+			io.WriteString(w, content)
+			w.Close()
+
+			res.Body = io.NopCloser(&buf)
+			res.ContentLength = int64(buf.Len())
+			res.Header.Set("Content-Encoding", "gzip")
 		}
 		res.Write(conn)
 	}
+}
+
+func isGzipAcceptable(req *http.Request) bool {
+	hs := req.Header["Accept-Encoding"]
+	return slices.Contains(hs, "gzip")
 }
