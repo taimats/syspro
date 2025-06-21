@@ -1,9 +1,10 @@
-package main
+package internal
 
 import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	_ "embed"
 	"errors"
 	"fmt"
 	"io"
@@ -12,32 +13,15 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 )
 
-// tcpを使った自作のhttp1.1対応のサーバー。
-// encodingではgzipを許可している。
-func main() {
-	address := "localhost:8080"
-	l, err := net.Listen("tcp", address)
-	if err != nil {
-		log.Fatalf("failed to open Listener:(error: %v)", err)
-	}
-	fmt.Printf("Server is listening on %v\n", address)
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			log.Println(err)
-			break
-		}
-		go handleRequest(conn)
-	}
-}
-
 // リクエスト内容を読み込み、レスポンスに書き込む。
-func handleRequest(conn net.Conn) {
+// レスポンス処理は以下に対応している。
+// ・gzipでの圧縮
+// ・チャンク形式の送付
+func HandleRequest(conn net.Conn, content []byte) {
 	defer conn.Close()
 	fmt.Printf("Accept %v\n", conn.RemoteAddr())
 
@@ -63,21 +47,37 @@ func handleRequest(conn net.Conn) {
 		}
 		fmt.Println(string(dump))
 
-		content := "Hello world\n"
+		if isChunkedTransferOK(req) {
+			//http.ResponseはContent-Length指定がないと、Connection Closeをクライアントに送る。
+			//だが、現段階ではサイズが指定できないため、文字列として直接connに書き込んでいる。
+			res := strings.Join([]string{
+				"HTTP/1.1 200 OK",
+				"Content-Type: text/plain",
+				"Transfer-Encoding: chunked",
+				"", "", //Bodyまでは2行分空白を作る必要がある
+			}, "\r\n")
+			fmt.Fprint(conn, res)
+
+			r := bytes.NewReader(content)
+			sc := bufio.NewScanner(r)
+			for sc.Scan() {
+				fmt.Fprintf(conn, "%s\r\n", sc.Bytes())
+			}
+			fmt.Fprint(conn, io.EOF)
+			return
+		}
 		res := &http.Response{
-			Status:        strconv.Itoa(http.StatusOK),
+			StatusCode:    http.StatusOK,
 			ProtoMajor:    1,
 			ProtoMinor:    1,
 			ContentLength: int64(len(content)),
-			Body:          io.NopCloser(strings.NewReader(content)),
+			Body:          io.NopCloser(bytes.NewReader(content)),
 			Header:        make(http.Header),
 		}
-		if isGzipAcceptable(req) {
-			content = "Hello world (Gzipped)\n"
-
+		if isGzipOK(req) {
 			var buf bytes.Buffer
 			w := gzip.NewWriter(&buf)
-			io.WriteString(w, content)
+			w.Write(content)
 			w.Close()
 
 			res.Body = io.NopCloser(&buf)
@@ -88,7 +88,11 @@ func handleRequest(conn net.Conn) {
 	}
 }
 
-func isGzipAcceptable(req *http.Request) bool {
+func isGzipOK(req *http.Request) bool {
 	hs := req.Header["Accept-Encoding"]
 	return slices.Contains(hs, "gzip")
+}
+
+func isChunkedTransferOK(req *http.Request) bool {
+	return req.Header.Get("transfer-encoding-type") == "chunked"
 }
