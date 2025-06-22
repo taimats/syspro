@@ -118,3 +118,31 @@ func isGzipOK(req *http.Request) bool {
 func isChunkedTransferOK(req *http.Request) bool {
 	return req.Header.Get("transfer-encoding-type") == "chunked"
 }
+
+// UDPプロトコルで通信を行うお試し関数。
+func UDPTrial(address string) {
+	conn, err := net.ListenPacket("udp", address)
+	if err != nil {
+		log.Fatalf("net.ListenPacket failed: (error: %v)", err)
+	}
+	fmt.Println("Server is listening on", address)
+	handleUDPSession(conn)
+}
+
+func handleUDPSession(conn net.PacketConn) {
+	defer conn.Close()
+	buf := make([]byte, 1500)
+	for {
+		length, addr, err := conn.ReadFrom(buf)
+		if err != nil {
+			log.Fatalf("conn.ReadFrom failed: (error: %v)", err)
+		}
+		fmt.Printf("{\ncontent: %s\naddress: %s\n}\n", buf[:length], addr)
+
+		res := `Hello, client`
+		_, err = conn.WriteTo([]byte(res), addr)
+		if err != nil {
+			log.Fatalf("conn.WriteTo failed: (error: %v)", err)
+		}
+	}
+}

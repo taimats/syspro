@@ -59,3 +59,24 @@ func isChunkedTransfer(res *http.Response) bool {
 func isGzipRequired(res *http.Response) bool {
 	return res.Header.Get("Content-Encoding") == "gzip"
 }
+
+func UDPRequest(address string) {
+	conn, err := net.Dial("udp4", address)
+	if err != nil {
+		log.Fatalf("net.Dial failed: (error: %v)", err)
+	}
+	defer conn.Close()
+
+	_, err = conn.Write([]byte(`Hello, server`))
+	if err != nil {
+		log.Fatalf("conn.Write in UDPRequest failed: (error: %v)", err)
+	}
+	fmt.Println("サーバーにメッセージを送信")
+
+	buf := make([]byte, 1500)
+	length, err := conn.Read(buf)
+	if err != nil {
+		log.Fatalf("conn.Read in UDPRequest failed: (error: %v)", err)
+	}
+	fmt.Printf("{\ncontent: %s\n}\n", buf[:length])
+}
