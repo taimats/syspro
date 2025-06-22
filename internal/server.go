@@ -55,7 +55,7 @@ func HandleSession(conn net.Conn, content []byte) {
 	}
 }
 
-// キューのなかに複数のレスポンスを内包し、非同期でレスポンスを返す。
+// キューのなかに複数のレスポンスを内包し、順にレスポンスを返す。
 func writeToConn(conn net.Conn, queue chan *http.Response) {
 	defer conn.Close()
 	for response := range queue {
@@ -63,22 +63,22 @@ func writeToConn(conn net.Conn, queue chan *http.Response) {
 	}
 }
 
-// リクエスト内容を読み込み、レスポンスに書き込む。
+// リクエスト内容を読み込み、レスポンスをキューに送信。
 // レスポンス処理は以下に対応している。
 // ・gzipでの圧縮
 // ・チャンク形式の送付
-// 作成したレスポンスはqueueに入れて、非同期で返却。
-// パイプライン実装を実現している。
 func handleRequest(req *http.Request, conn net.Conn, queue chan *http.Response, content []byte) {
 	if isChunkedTransferOK(req) {
 		//http.ResponseはContent-Length指定がないと、Connection Closeをクライアントに送る。
-		//だが、現段階ではサイズが指定できないため、文字列として直接connに書き込んでいる。
+		//だが、チャンク形式の送付ではBodyを複数回に分けて送付するため、現段階ではサイズが未定である。
+		//よって、暫定的にBodyとContent-Length以外の文字列を直接connに書き込んでいる。
 		res := strings.Join([]string{
 			"HTTP/1.1 200 OK",
 			"Content-Type: text/plain",
 			"Transfer-Encoding: chunked",
 			"", "", //Bodyまでは2行分空白を作る必要がある
 		}, "\r\n")
+		//この場合は、キューを通していない。
 		fmt.Fprint(conn, res)
 
 		r := bytes.NewReader(content)
