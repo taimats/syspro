@@ -27,6 +27,6 @@ func main() {
 			log.Println(err)
 			break
 		}
-		go internal.HandleRequest(conn, content)
+		go internal.HandleSession(conn, content)
 	}
 }
