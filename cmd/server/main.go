@@ -1,32 +1,32 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
-	"log"
 	"net"
-
-	"github.com/taimats/internal"
+	"os"
+	"os/signal"
+	"path/filepath"
 )
 
 //go:embed content.txt
 var content []byte
 
-// tcpを使った自作のhttp1.1対応のサーバー。
-// encodingではgzipを許可している。
 func main() {
-	address := "localhost:8080"
-	l, err := net.Listen("tcp", address)
+	path := filepath.Join(os.TempDir(), "unix-socket")
+	defer os.Remove(path)
+	l, err := net.Listen("unix", path)
 	if err != nil {
-		log.Fatalf("failed to open Listener:(error: %v)", err)
+		panic(err)
 	}
-	fmt.Printf("Server is listening on %v\n", address)
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			log.Println(err)
-			break
-		}
-		go internal.HandleSession(conn, content)
-	}
+	defer l.Close()
+
+	fmt.Println("Server is listening on file", path)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	<-ctx.Done()
+	fmt.Println("プログラムを停止します")
 }
