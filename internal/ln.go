@@ -42,11 +42,12 @@ func (ln *LnCMD) Name() string {
 }
 
 func (ln *LnCMD) Parse() {
-	if len(ln.args[1:]) < 2 {
+	//a process when only a command name (plus alpha) is passed
+	if len(ln.args[0:]) < 2 {
 		ln.Usage()
-		os.Exit(2)
+		os.Exit(0)
 	}
-
+	//parsing flags
 	flag := ln.args[1]
 	if flag == "-h" || flag == "-help" {
 		ln.Usage()
@@ -54,7 +55,7 @@ func (ln *LnCMD) Parse() {
 	}
 	if flag == "-s" {
 		if len(ln.args[2:]) != 2 {
-			ln.Usage()
+			fmt.Println("ファイル名を指定ください")
 			os.Exit(2)
 		}
 		ln.simbol = true
@@ -62,7 +63,11 @@ func (ln *LnCMD) Parse() {
 		ln.dist = ln.args[3]
 		return
 	}
-
+	//in the case of no flags
+	if len(ln.args[1:]) != 2 {
+		fmt.Println("ファイル名を指定ください")
+		os.Exit(2)
+	}
 	ln.target = ln.args[1]
 	ln.dist = ln.args[2]
 }
