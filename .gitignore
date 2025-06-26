@@ -3,3 +3,5 @@ test.http
 content.txt
 
 *.png
+
+*.env*
