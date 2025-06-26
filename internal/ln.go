@@ -8,10 +8,10 @@ import (
 const usage = `<Usage>
  ln registers a physical or simbolic name to a certain path.
  It behaves like Unix "ln" command, so does its usage in the following way:
-   ln <options> target(=path) dist(=path)
+   ln <options> target(=path) dest(=path)
 
 <Options>
- -s: registers a simbolic name to dist
+ -s: registers a simbolic name to dest
  -h, -help: shows info for this command usage`
 
 type Command interface {
@@ -26,7 +26,7 @@ var _ Command = (*LnCMD)(nil)
 type LnCMD struct {
 	args   []string
 	target string
-	dist   string
+	dest   string
 	simbol bool
 }
 
@@ -60,7 +60,7 @@ func (ln *LnCMD) Parse() {
 		}
 		ln.simbol = true
 		ln.target = ln.args[2]
-		ln.dist = ln.args[3]
+		ln.dest = ln.args[3]
 		return
 	}
 	//in the case of no flags
@@ -69,17 +69,17 @@ func (ln *LnCMD) Parse() {
 		os.Exit(2)
 	}
 	ln.target = ln.args[1]
-	ln.dist = ln.args[2]
+	ln.dest = ln.args[2]
 }
 
 func (ln *LnCMD) Run() error {
 	if ln.isSimbolic() {
-		if err := os.Symlink(ln.target, ln.dist); err != nil {
+		if err := os.Symlink(ln.target, ln.dest); err != nil {
 			return err
 		}
 		return nil
 	}
-	if err := os.Link(ln.target, ln.dist); err != nil {
+	if err := os.Link(ln.target, ln.dest); err != nil {
 		return err
 	}
 	return nil
