@@ -36,3 +36,48 @@ func Worker(l *loan, years chan int, wg *sync.WaitGroup) {
 		wg.Done()
 	}
 }
+
+var Generator = func(done <-chan struct{}, nums ...int) <-chan int {
+	intStream := make(chan int, len(nums))
+	go func() {
+		defer close(intStream)
+		for _, i := range nums {
+			select {
+			case <-done:
+				return
+			case intStream <- i:
+			}
+		}
+	}()
+	return intStream
+}
+
+func Multiply(done <-chan struct{}, intStream <-chan int, multiplier int) <-chan int {
+	mulStream := make(chan int)
+	go func() {
+		defer close(mulStream)
+		for i := range intStream {
+			select {
+			case <-done:
+				return
+			case mulStream <- i * multiplier:
+			}
+		}
+	}()
+	return mulStream
+}
+
+func Add(done <-chan struct{}, intStream <-chan int, additive int) <-chan int {
+	addStream := make(chan int)
+	go func() {
+		defer close(addStream)
+		for i := range intStream {
+			select {
+			case <-done:
+				return
+			case addStream <- i + additive:
+			}
+		}
+	}()
+	return addStream
+}
