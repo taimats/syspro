@@ -15,8 +15,12 @@ func Which(args []string) {
 		os.Exit(1)
 	}
 	cmdName := args[1]
-	if !strings.Contains(cmdName, ".exe") {
+	if !strings.ContainsRune(cmdName, '.') {
 		cmdName = cmdName + ".exe"
+	}
+	if !strings.HasSuffix(cmdName, ".exe") {
+		color.Red("コマンドの拡張子は\".exe\"としてください")
+		os.Exit(1)
 	}
 
 	paths := filepath.SplitList(os.Getenv("PATH"))
