@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"os"
+	"time"
 )
 
 func NewRequest(method string, url string, body io.Reader, encodings []string) (*http.Request, error) {
@@ -79,4 +81,74 @@ func UDPRequest(address string) {
 		log.Fatalf("conn.Read in UDPRequest failed: (error: %v)", err)
 	}
 	fmt.Printf("{\ncontent: %s\n}\n", buf[:length])
+}
+
+type ExtendedTransport struct {
+	transport http.RoundTripper
+
+	maxRetryCount     int
+	currentRetryCount int
+
+	maxReqCount    int
+	perMilliSecond int64
+	window         Window
+}
+
+func NewExtendedTransport(transport http.RoundTripper, maxRetryCount int, maxReqCount int, perMilliSecond int64) *ExtendedTransport {
+	return &ExtendedTransport{
+		transport:         transport,
+		maxRetryCount:     maxRetryCount,
+		currentRetryCount: 0,
+		maxReqCount:       maxReqCount,
+		perMilliSecond:    perMilliSecond,
+		window: Window{
+			dueTime:  int64(0),
+			reqCount: 0,
+		},
+	}
+}
+
+func (e *ExtendedTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	for {
+		now := time.Now().UnixMilli()
+		wait := e.window.dueTime - now
+		//if wait is a minus number, now should be over the due time..
+		if wait < 0 {
+			//a new time span starting here
+			e.window = Window{
+				dueTime:  now + e.perMilliSecond,
+				reqCount: 0,
+			}
+			break
+		}
+		if e.window.reqCount < e.maxReqCount {
+			break
+		}
+		time.Sleep(time.Duration(wait) * time.Millisecond)
+	}
+	e.window.reqCount++
+
+	var res *http.Response
+	var err error
+	for {
+		res, err = e.transport.RoundTrip(r)
+		if res != nil && res.StatusCode < http.StatusInternalServerError {
+			break
+		}
+		e.currentRetryCount++
+		if e.currentRetryCount > e.maxRetryCount {
+			break
+		}
+		//Exponential backoff
+		time.Sleep(time.Second * time.Duration(math.Pow(2, float64(e.currentRetryCount))))
+	}
+	//need to be initialized so that a conn can be used multiple times
+	e.currentRetryCount = 0
+	return res, err
+}
+
+// Fixed window counter algorithm
+type Window struct {
+	dueTime  int64
+	reqCount int
 }
