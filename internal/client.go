@@ -112,7 +112,7 @@ func (e *ExtendedTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	for {
 		now := time.Now().UnixMilli()
 		wait := e.window.dueTime - now
-		//if wait is a minus number, now should be over the due time..
+		//if wait is a minus number, now should be over the due time.
 		if wait < 0 {
 			//a new time span starting here
 			e.window = Window{
